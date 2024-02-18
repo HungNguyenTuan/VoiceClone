@@ -1,6 +1,8 @@
 import uvicorn
 from fastapi import FastAPI, UploadFile, File
 from starlette.responses import FileResponse
+from pyngrok import ngrok
+import atexit
 import sys
 sys.path.append('./bark-voice-cloning-HuBERT-quantizer')
 import os
@@ -77,12 +79,12 @@ app = FastAPI()
 def index():
     return {'message': 'Hello, World'}
 
-@app.get('/Generate')
-def get_generate(text_prompt: str, audio_filepath: str):
-    result_path = generate(text_prompt, audio_filepath)
-    # generate("A ladybug with mismatched spots landed on a plump blueberry, its tiny legs tickling the fruit's fuzzy skin.[laughs]", "samples/temp.mp3")
-    # return {'Audio': FileResponse(result_path, media_type='audio/mpeg')}
-    return {'Audio': result_path}
+# @app.get('/Generate')
+# def get_generate(text_prompt: str, audio_filepath: str):
+#     result_path = generate(text_prompt, audio_filepath)
+#     # generate("A ladybug with mismatched spots landed on a plump blueberry, its tiny legs tickling the fruit's fuzzy skin.[laughs]", "samples/temp.mp3")
+#     # return {'Audio': FileResponse(result_path, media_type='audio/mpeg')}
+#     return {'Audio': result_path}
 # async def generate_route(text_prompt: str, file: UploadFile = File(...)):
 #     # Save the uploaded file to disk
 #     with open(f"samples/{file.filename}", "wb") as buffer:
@@ -94,27 +96,34 @@ def get_generate(text_prompt: str, audio_filepath: str):
 #     # Return the result audio file
 #     return FileResponse(result_audio_path, media_type='audio/mpeg')
 
-# @app.post("/get_audio")
-# async def get_audio(file: UploadFile = File(...)):
-#     if not (file.filename.endswith('.mp3') or file.filename.endswith('.wav')):
-#         return {"error": "Invalid file type. Please upload an mp3 or wav file."}
+@app.post("/get_audio")
+async def get_audio(file: UploadFile = File(...)):
+    extension = os.path.splitext(file.filename)[1]
+    if not (extension == '.mp3' or extension == '.wav'):
+        return {"error": "Invalid file type. Please upload an mp3 or wav file."}
 
-#     with open(f"samples/upload", "wb") as buffer:
-#         buffer.write(await file.read())
+    new_filename = f"samples/upload{extension}"
+    with open(new_filename, "wb") as buffer:
+        buffer.write(await file.read())
 
-#     print("File uploaded successfully")
-#     return {"message": "File uploaded successfully"}
+    print("File uploaded successfully")
+    return {"message": "File uploaded successfully"}
 
-# @app.get("/get_generate")
-# async def get_generate(text_prompt: str):
-#     print("Generating audio")
-#     result_audio_path = generate(text_prompt, "samples/upload")
-#     print("Audio generated successfully")
-#     # return {'audio': FileResponse(result_audio_path, media_type='audio/mpeg')}
-#     return FileResponse(result_audio_path, media_type='audio/mpeg')
+@app.get("/get_generate")
+async def get_generate(text_prompt: str):
+    print("Generating audio")
+    result_audio_path = generate(text_prompt, "samples/upload")
+    print("Audio generated successfully")
+    # return {'audio': FileResponse(result_audio_path, media_type='audio/mpeg')}
+    return FileResponse(result_audio_path, media_type='audio/mpeg')
 
+def close_ngrok():
+    print("Closing ngrok ...")
+    ngrok.kill()
 
 if __name__ == '__main__':
+    public_url = ngrok.connect(8000)
+    print(" * ngrok tunnel \"{}\" -> \"http://127.0.0.1:5000\"".format(public_url))
+    atexit.register(close_ngrok)
     uvicorn.run(app, host='127.0.0.1', port=8000)
-
 #uvicorn main:app --reload
